@@ -275,6 +275,27 @@ async function pollModerationStatus(assetId, apiKey, maxWaitMs = 1800000) {
 }
 
 /**
+ * Archive asset yang ditolak moderasi.
+ * Endpoint: POST https://apis.roblox.com/assets/v1/assets/{assetId}:archive
+ * @param {string} assetId
+ * @param {string} apiKey
+ */
+async function archiveAsset(assetId, apiKey) {
+    try {
+        await axios.post(
+            `https://apis.roblox.com/assets/v1/assets/${assetId}:archive`,
+            {},
+            { headers: { 'x-api-key': apiKey } }
+        );
+        console.log(`[Archive] Asset ${assetId} berhasil di-archive.`);
+        return true;
+    } catch (err) {
+        console.warn(`[Archive WARN] Asset ${assetId}: ${err.message}`);
+        return false;
+    }
+}
+
+/**
  * Format status moderasi menjadi label yang mudah dibaca.
  */
 function formatModerationStatus(state) {
@@ -438,10 +459,17 @@ client.on('messageCreate', async (message) => {
     const moderationResults = await Promise.all(
         uploadedAssets.map(async (asset) => {
             const rawStatus = await pollModerationStatus(asset.assetId, asset.apiKey);
+
+            // Auto-archive jika ditolak moderasi
+            let archived = false;
+            if (rawStatus?.toLowerCase() === 'rejected') {
+                archived = await archiveAsset(asset.assetId, asset.apiKey);
+            }
+
             return {
                 name: asset.name,
                 id: asset.assetId,
-                status: formatModerationStatus(rawStatus),
+                status: formatModerationStatus(rawStatus) + (archived ? ' (auto-archived)' : ''),
                 usedKey: asset.usedKey,
                 quota: asset.quota
             };
